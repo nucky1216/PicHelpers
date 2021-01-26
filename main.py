@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 from shutil import copyfile
 
-import os
+import os,shutil
 import re
 i=1
 def ReadBin(fn):
@@ -158,7 +158,7 @@ def MkdirAndSave(SavePath,files):
             else:
                 print(SavePath+f'\\{idx}')
                 copyfile(f[0]+'\\'+f[1],SavePath+f'\\{idx}\\'+f[1])
-def CROP(img,dstX=3500,dstY=3000,Center=1,Height=120,Postion=(0,0)):
+def CROP(img,dstX=3500,dstY=3000,Center=1,Height=200,Width=200,Postion=(0,0)):
     img2 = img.copy()
     # if len(img.shape)==3:
     #     img2=cv2.cvtColor(img2,cv2.COLOR_RGB2GRAY)
@@ -171,7 +171,18 @@ def CROP(img,dstX=3500,dstY=3000,Center=1,Height=120,Postion=(0,0)):
         print(img2.shape)
     elif Center==2:
         x,y=Postion
-        img2=img[y:y+Height,x:x+Height,:]
+        if Height<10:
+            x-=40
+            Height = x+80
+            if x<0: x=0
+            if Height>img.shape[1]:Height=img.shape[1]
+        if Width<10:
+            Width=80
+            y-=40
+            Width=y+Width
+            if y<0: y=0
+            if Width>img.shape[0]:Width=img.shape[0]
+        img2=img[y:Width,x:Height,:]
 
 
     return img2
@@ -190,39 +201,70 @@ def ConvertFromPNG(Dir,savepath):
    MkdirAndSave(savepath,files)
 
 
-def CropMutiPics():
-    Path=r'C:\Users\vrlab\Documents\YklabData\YklabData\PlaneHead\SideToSun\3_6'
-    OrignSurface=cv2.imread(Path+'/grad30-13-152-10.png')
-    crop_origin=CROP(OrignSurface)
-    cv2.imwrite('./CropOutput/origin.png',crop_origin)
+def CropMutiPics(ReadPath,SavePath,Position,Width,Height,Tag,OriginPic=3):
+    Path=ReadPath
+    if ~os.path.exists(ReadPath +' /origin.png'):
+        OrignSurface=cv2.imread(Path+f'/{OriginPic}.png')
+        crop_origin=CROP(OrignSurface)
+        cv2.imwrite('./CropOutput/origin.png',crop_origin)
 
-    Position=(3311,2557)
+    #Position=(0,2200)
     grad=cv2.imread(Path+r'\grad8000-13-152-10.png')
     normal=cv2.imread(Path+r'\normal-_GRAD8000-RS8_13-152-10.png')
 
-    c_crop_origin=CROP(crop_origin,Center=2,Postion=Position)
-    c_grad=CROP(grad,Center=2,Postion=Position)
-    c_normal = CROP(normal, Center=2, Postion=Position)
+    c_crop_origin=CROP(crop_origin,Height=Height,Width=Width,Center=2,Postion=Position)
+    c_grad=CROP(grad,Center=2,Height=Height,Width=Width,Postion=Position)
+    c_normal = CROP(normal, Center=2,Height=Height,Width=Width, Postion=Position)
 
-    cv2.imwrite('./CropOutput/flaw_origin.png',c_crop_origin)
-    cv2.imwrite('./CropOutput/flaw_grad.png', c_grad)
-    cv2.imwrite('./CropOutput/flaw_normal.png', c_normal)
+    cv2.imwrite(SavePath+f'/flaw_origin_{Tag}.png',c_crop_origin)
+    cv2.imwrite(SavePath+f'/flaw_grad_{Tag}.png', c_grad)
+    cv2.imwrite(SavePath+f'/flaw_normal_{Tag}.png', c_normal)
+
+def GenerateDataSet(ReadPath,SavePath):
+    DirPaths=FindCurrentSubDir(ReadPath)
+
+    for path in DirPaths:
+        DirName=path.split('\\')[-1]
+        if ~os.path.exists(SavePath+f'/{DirName}'):
+            os.makedirs(SavePath+'/'+DirName)
+        for root,dirs,files in os.walk(path):
+            for file in files:
+                if re.match('(\d.(png|bin))|(flaws.txt)|(rivets.txt)',file):
+                    shutil.copy(path+'/'+file,SavePath+'/'+DirName)
+                   # os.makedirs(SavePath+)
+
+def WriteFile(SavePath,Lists):
+   n=np.array(Lists)
+
+   print(n)
+   np.savetxt(SavePath,n)
+def GenerateResultPics(ReadPath,SavePath):
+    DirPath=FindCurrentSubDir(ReadPath)
+    for path in DirPath:
+        DirName=path.split('\\')[-1]
+        if ~os.path.exists(SavePath+f'/{DirName}'):
+            os.makedirs(SavePath+'/'+DirName)
+        flaws=np.load(ReadPath+'/flaws.txt')
+        for idx ,flaw in enumerate(flaws):
+
+            CropMutiPics(ReadPath+'\path',SavePath+'/'+DirName,(flaw[0],flaw[1]),flaw[2],flaw[3],idx)
+
+
+
+
+
 if __name__ == '__main__':
     # Dir=r'C:\Users\vrlab\Documents\YklabData\现场数据\12.22\TestHole\left_mid\1\1_1_1_6_00_00006_thumbnail.png'
     Dir=r'C:\Users\vrlab\Documents\YklabData\HistoryData\12.31\TestOnTheBoard'
-    Dir = r'C:\Users\vrlab\Documents\YklabData\HistoryData\12.31\TestOnTheBoard\TestOriginData'
+    DIR=r'C:\Users\vrlab\Documents\YklabData\YklabData\PlaneHead\SideToSun'
     Dir2=r'E:\Comac\1_6\HeadTop\2'
     savepath=r'C:\Users\vrlab\Documents\YklabData\HistoryData\12.31\TestOnTheBoard\TestSave'
     CropDir=r'C:\Users\vrlab\Documents\YklabData\RivetDetection\res3_6.png'
     img=cv2.imread(r'C:\Users\vrlab\Desktop\TestAdaptive\adaptive\vis_mask_before.png')
-    #
-    # img=CROP(img,Center=2,Height=100,Postion=(205,205))
-    # img=cv2.imwrite(r'C:\Users\vrlab\Desktop\TestAdaptive\16_mask_area.png',img)
 
-    CropMutiPics()
-   # img2=CROP(img,Center=2,Postion=(1958,1017))
-   # cv2.imwrite(f'./CropOutput/4.png',img2)
-   # i+=1
+    GenerateResultPics()
+
+
 
 
 
